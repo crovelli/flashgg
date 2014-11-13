@@ -4,13 +4,15 @@ process = cms.PSet()
 
 process.fwliteInput = cms.PSet(
     fileNames   = cms.vstring(
-        'file:GJets_HT-600toInf_myOutputFile_1.root'),  
-    #'root://eoscms//eos/cms/store/relval/CMSSW_7_0_0_pre11/RelValProdTTbar/GEN-SIM-RECO/START70_V4-v1/00000/0EA82C3C-646A-E311-9CB3-0025905A6070.root'), ## mandatory
-    maxEvents   = cms.int32(100),                      ## optional
+        #'file:RSGravToGG_kMpl-02_M-5000_Tune4C_OutputFile_2.root'),
+        'root://eoscms//eos/cms/store/group/phys_higgs/cmshgg/flashgg/ExoPhys14/alphaV1-96-g5e4dc54/RSGravToGG_kMpl-02_M-5000_Tune4C_13TeV-pythia8/ExoPhys14-alphaV1-96-g5e4dc54-v1-Phys14DR-PU20bx25_PHYS14_25_V1-v1/141112_020912/0000/myOutputFile_1.root',
+        'root://eoscms//eos/cms/store/group/phys_higgs/cmshgg/flashgg/ExoPhys14/alphaV1-96-g5e4dc54/RSGravToGG_kMpl-02_M-5000_Tune4C_13TeV-pythia8/ExoPhys14-alphaV1-96-g5e4dc54-v1-Phys14DR-PU20bx25_PHYS14_25_V1-v1/141112_020912/0000/myOutputFile_2.root',
+        'root://eoscms//eos/cms/store/group/phys_higgs/cmshgg/flashgg/ExoPhys14/alphaV1-96-g5e4dc54/RSGravToGG_kMpl-02_M-5000_Tune4C_13TeV-pythia8/ExoPhys14-alphaV1-96-g5e4dc54-v1-Phys14DR-PU20bx25_PHYS14_25_V1-v1/141112_020912/0000/myOutputFile_3.root'),
+    maxEvents   = cms.int32(-1),                
     )
 
 process.fwliteOutput = cms.PSet(
-    fileName  = cms.string('analyzeFWLdiphot.root'),  ## mandatory
+    fileName  = cms.string('analyzeFWLdiphot.root'),  
     )
 
 process.DiphotonsBasic = cms.PSet(

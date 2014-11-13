@@ -18,6 +18,15 @@
 
 using namespace std;
 
+// per event tree
+struct eventTree_struc_ {
+
+  int nPho;
+  int nMatchedPho;
+};
+
+
+// per photon tree
 struct phoTree_struc_ {
 
   float pt;
@@ -63,11 +72,14 @@ struct phoTree_struc_ {
   float truePt;
   float trueEta;
   float truePhi;
+  float minDR;
 
   // da DataFormats/EgammaCandidates/interface/Photon.h, ma da capire come spacchettare
   // const EnergyCorrections & energyCorrections() const { return eCorrections_ ; }
 };
 
+
+eventTree_struc_ treeEv_;
 phoTree_struc_ tree_;
 
 
@@ -98,14 +110,19 @@ int main(int argc, char* argv[]) {
   // ----------------------------------------------
   // output file
   TFile *outputFile = new TFile(outputHandler_.file().c_str(),"RECREATE");
-  
+
+  // book a tree per event
+  TTree *eventTree = new TTree("eventVar","eventVar");
+  TString treeEvent = "nPho/I:nMatchedPho/I";
+  eventTree->Branch("event",&(treeEv_.nPho),treeEvent);  
+
   // book a tree with photon variables
   TTree *phoTree = new TTree("singlePhotons","singlePhotons");
   TString treeKine = "pt/F:eta/F:phi/F";
   TString treeEne  = "eMax/F:e5x5/F:energy/F:energyInitial/F:energyRegression/F";
   TString treeID   = "e1x5/F:e2x5/F:sigmaIetaIeta/F:r9/F:hoe/F:h1oe/F:h2oe/F:htoe/F:ht1oe/F:ht2oe/F:passEleVeto/B:hasPixelSeed/B";
   TString treeIso  = "trackIso/F:ecalIso/F:hcalIso/F:chHadIso/F:nHadIso/F:photonIso/F";
-  TString treeTrue = "trueEnergy/F:truePt/F:trueEta/F:truePhi/F";
+  TString treeTrue = "trueEnergy/F:truePt/F:trueEta/F:truePhi/F:minDR/F";
   phoTree->Branch("kinematics",&(tree_.pt),treeKine);  
   phoTree->Branch("energy",&(tree_.eMax),treeEne);  
   phoTree->Branch("identification",&(tree_.e1x5),treeID);  
@@ -123,7 +140,7 @@ int main(int argc, char* argv[]) {
       fwlite::Event ev(inFile);
       for(ev.toBegin(); !ev.atEnd(); ++ev, ++ievt){
 
-	if (!ievt%1000) cout << ievt << endl;
+	if (!ievt%100) cout << ievt << endl;
 	
        	// break loop if maximal number of events is reached 
 	if(maxEvents_>0 ? ievt+1>maxEvents_ : false) break;
@@ -135,7 +152,10 @@ int main(int argc, char* argv[]) {
 	fwlite::Handle<std::vector<reco::GenParticle> > objs_gens;  
 	objs_gens.getByLabel(ev,"prunedGenParticles");
 
+
 	// real analysis
+	int allGamma = 0;
+	int matchedGamma = 0;
 	for(std::vector<flashgg::Photon>::const_iterator g1=objs_pho->begin(); g1!=objs_pho->end(); ++g1){
 
 	  // filling the tree
@@ -178,29 +198,49 @@ int main(int argc, char* argv[]) {
 	  // tree_.iPhi   = g1->iPhi();
 	  // tree_.iEta   = g1->iEta();
 
-	  // chiara
-	  float matchedEne = 999.;
-	  float matchedPt  = 999.;
-	  float matchedEta = 999.;
-	  float matchedPhi = 999.;
+	  float matchedEne = -999.;
+	  float matchedPt  = -999.;
+	  float matchedEta = -999.;
+	  float matchedPhi = -999.;
+	  float minDR      = 999.;
 	  for( std::vector<reco::GenParticle>::const_iterator gen=objs_gens->begin(); gen!=objs_gens->end(); ++gen){
-	    if( gen->pdgId() == 22 && gen->status() == 1 &&
-		(deltaR(gen->eta(),gen->phi(),g1->eta(),g1->phi()) < 0.1) ) {
-	      matchedEne = gen->energy();
-	      matchedPt  = gen->energy()*sin(gen->theta());
-	      matchedEta = gen->eta();
-	      matchedPhi = gen->phi();
-	      break;
+
+	    if( gen->pdgId() == 22 && gen->status() == 1 && (gen->mother())->pdgId()==5100039 ) {
+
+	      float dR = deltaR(gen->eta(),gen->phi(),g1->eta(),g1->phi()); 
+	      if ( dR<minDR ) {
+		minDR = dR;
+		if ( dR<0.1 ) {
+		  matchedEne = gen->energy();
+		  matchedPt  = gen->energy()*sin(gen->theta());
+		  matchedEta = gen->eta();
+		  matchedPhi = gen->phi();
+		  break;
+		}
+	      }
 	    }
-	  }
+	    
+	  } // loop over gen photons
 	  tree_.trueEnergy = matchedEne;
 	  tree_.truePt     = matchedPt;
 	  tree_.trueEta    = matchedEta;
 	  tree_.truePhi    = matchedPhi;
+	  tree_.minDR      = minDR;
 
+	  // to count the number of reco photons and reco matching gen ones
+	  allGamma++;
+	  if (matchedEne>-1) matchedGamma++;
+	  
 	  outputFile->cd();
 	  phoTree->Fill();
-	}
+	}  // loop over reco photons
+
+	// filling the tree with per-event infos
+	treeEv_.nPho        = allGamma;
+	treeEv_.nMatchedPho = matchedGamma;
+	outputFile->cd();
+	eventTree->Fill();
+
       } // loop over events
       
       inFile->Close();
