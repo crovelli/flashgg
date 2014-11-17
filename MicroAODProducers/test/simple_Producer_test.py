@@ -22,7 +22,8 @@ process.SimpleMemoryCheck = cms.Service("SimpleMemoryCheck",
                                         monitorPssAndPrivate = cms.untracked.bool(True)
                                        )
 
-process.source = cms.Source("PoolSource",fileNames=cms.untracked.vstring("/store/cmst3/user/gpetrucc/miniAOD/v1/GluGluToHToGG_M-125_13TeV-powheg-pythia6_Flat20to50_PAT.root"))
+process.source = cms.Source("PoolSource",
+                            fileNames=cms.untracked.vstring("/store/relval/CMSSW_7_2_0/RelValH130GGgluonfusion_13/MINIAODSIM/PU25ns_PHYS14_25_V1_Phys14-v2/00000/1830E403-9F59-E411-9BAC-0025905A48BC.root"))
 
 process.load("flashgg/MicroAODProducers/flashggVertexMaps_cfi")
 process.load("flashgg/MicroAODProducers/flashggPhotons_cfi")
