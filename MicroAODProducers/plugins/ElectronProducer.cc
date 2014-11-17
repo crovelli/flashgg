@@ -137,6 +137,7 @@ namespace flashgg {
 			//if{} //d0
 			//if{} //dz 	
 			/// if(pelec->gsfTrack()->trackerExpectedHitsInner().numberOfHits()>1)continue;
+			if(pelec->gsfTrack()->hitPattern().numberOfHits(reco::HitPattern::MISSING_INNER_HITS)>1){ continue; }
 			if(!ConversionTools::hasMatchedConversion(*pelec,convs,vertexPoint)){
 				elecColl->push_back(felec);
 			}
