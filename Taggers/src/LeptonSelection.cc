@@ -10,7 +10,7 @@ namespace flashgg {
 
     std::vector<edm::Ptr<flashgg::Muon> > selectMuons( const std::vector<edm::Ptr<flashgg::Muon> > &muonPointers, Ptr<flashgg::DiPhotonCandidate> dipho,
             const std::vector<edm::Ptr<reco::Vertex> > &vertexPointers, double muonEtaThreshold, double muonPtThreshold, double muPFIsoSumRelThreshold,
-            double dRPhoLeadMuonThreshold, double dRPhoSubLeadMuonThreshold )
+                                                       double dRPhoLeadMuonThreshold, double dRPhoSubLeadMuonThreshold )
     {
 
         std::vector<edm::Ptr<flashgg::Muon> > goodMuons;
@@ -54,7 +54,7 @@ namespace flashgg {
 
             //https://twiki.cern.ch/twiki/bin/view/CMSPublic/SWGuideMuonId#Tight_Muon and https://cmssdt.cern.ch/SDT/lxr/source/RecoBTag/SoftLepton/plugins/SoftPFMuonTagInfoProducer.cc#0135
 
-            if( !muon::isTightMuon( *muon, *best_vtx ) ) { continue; }
+            if( !muon::isTightMuon( *muon, *best_vtx ) ) continue; 
 
             //I = [sumChargedHadronPt+ max(0.,sumNeutralHadronPt+sumPhotonPt-0.5sumPUPt]/pt
             //https://cmssdt.cern.ch/SDT/doxygen/CMSSW_5_3_14/doc/html/df/d33/structreco_1_1MuonPFIsolation.html
@@ -147,10 +147,111 @@ namespace flashgg {
         return goodElectrons;
     }
 
+    std::vector<edm::Ptr<Electron> > selectMediumElectrons( const std::vector<edm::Ptr<flashgg::Electron> > &ElectronPointers,
+                                                            const std::vector<edm::Ptr<reco::Vertex> > &vertexPointers,
+                                                            Ptr<flashgg::DiPhotonCandidate> dipho,  
+                                                            float rho,
+                                                            double ElectronPtThreshold,
+                                                            double dRPhoLeadEleThreshold, double dRPhoSubLeadEleThreshold )
+    {
+
+        std::vector<edm::Ptr<flashgg::Electron> > goodElectrons;
+
+        for( unsigned int ElectronIndex = 0; ElectronIndex < ElectronPointers.size(); ElectronIndex++ ) {
+            
+            Ptr<flashgg::Electron> Electron = ElectronPointers[ElectronIndex];
+
+            float Electron_eta = fabs( Electron->superCluster()->eta() );
+            if( Electron_eta > 2.5) continue; 
+            if( Electron_eta > 1.442 && Electron_eta< 1.566) continue;   
+
+            if( Electron->pt() < ElectronPtThreshold ) continue;   
+
+            // hardcoded cuts
+            // https://twiki.cern.ch/twiki/bin/view/CMS/CutBasedElectronIdentificationRun2#Spring15_selection_25ns
+            float sieie_cut = 0.0101;
+            float detacut = 0.0103;
+            float dphicut = 0.0336;
+            float hoecut = 0.0876;
+            float relisocut = 0.0766;
+            float ooemoopcut = 0.0174;
+            float dxycut = 0.0118;
+            float dzcut = 0.373;
+            int misshcut = 2;  
+            // + conversion veto 
+            if (Electron_eta>1.5) {
+                sieie_cut = 0.0283;
+                detacut = 0.00733;
+                dphicut = 0.114;
+                hoecut = 0.0678;
+                relisocut = 0.0678;
+                ooemoopcut = 0.0898;
+                dxycut = 0.0739;
+                dzcut = 0.602;
+                misshcut = 1;  
+            }
+
+            // ID selection
+            float HoE          = Electron->hcalOverEcal();   
+            float DeltaPhiIn   = fabs(Electron->deltaPhiSuperClusterTrackAtVtx());    
+            float DeltaEtaIn   = fabs(Electron->deltaEtaSuperClusterTrackAtVtx());          
+            float Full5x5Sieie = fabs(Electron->full5x5_sigmaIetaIeta());   
+            float ecalEne      = Electron->ecalEnergy();  
+            float OneOverEoP;    
+            if (ecalEne==0) {   
+                OneOverEoP = 1000000.; 
+            } else {
+                OneOverEoP = fabs(1.0/ecalEne - (Electron->eSuperClusterOverP())/ecalEne);     
+            }
+            bool passHoE     = HoE<hoecut;
+            bool passDPhi    = DeltaPhiIn<dphicut;
+            bool passDEta    = DeltaEtaIn<detacut;
+            bool passSieie   = Full5x5Sieie<sieie_cut;
+            bool passOoemoop = OneOverEoP<ooemoopcut;
+            bool passId = passHoE && passDPhi && passDEta && passSieie && passOoemoop;
+            
+            // Isolation 
+            float scEta = fabs(Electron->superCluster()->eta());
+            reco::GsfElectron::PflowIsolationVariables pfIso = Electron->pfIsolationVariables();    
+            float corrHadPlusPho = pfIso.sumNeutralHadronEt + pfIso.sumPhotonEt - rho*effectiveAreaEle03(scEta);   
+            if (corrHadPlusPho<=0) corrHadPlusPho = 0.; 
+            float absIsoWeffArea = pfIso.sumChargedHadronPt + corrHadPlusPho; 
+            float relIso = absIsoWeffArea/(Electron->pt());         
+            bool passIso = relIso<relisocut;
+
+            // IP
+            Ptr<reco::Vertex> Electron_vtx = chooseElectronVertex( Electron, vertexPointers );
+            float dxy = fabs(Electron->gsfTrack()->dxy(Electron_vtx->position()));
+            float dz  = fabs(Electron->gsfTrack()->dz(Electron_vtx->position()));
+            bool passdz  = dz<dzcut;
+            bool passdxy = dxy<dxycut;
+            bool passIp  = passdz && passdxy;
+
+            // conversion rejection
+            int missHits   = Electron->gsfTrack()->hitPattern().numberOfHits( reco::HitPattern::MISSING_INNER_HITS );
+            bool matchConv = Electron->hasMatchedConversion();
+            bool passmhits = missHits<=misshcut; 
+            bool passConv  = !matchConv && passmhits;
+
+            // all
+            bool selected = passId && passIp && passConv && passIso;
+            if (!selected) continue;
+
+            // should be far from the photons
+            float scPhi = fabs(Electron->superCluster()->phi());
+            float dRPhoLeadEle = deltaR( scEta, scPhi, dipho->leadingPhoton()->superCluster()->eta(), dipho->leadingPhoton()->superCluster()->phi() ) ;
+            float dRPhoSubLeadEle = deltaR( scEta, scPhi, dipho->subLeadingPhoton()->superCluster()->eta(), dipho->subLeadingPhoton()->superCluster()->phi() );
+            if( dRPhoLeadEle < dRPhoLeadEleThreshold || dRPhoSubLeadEle < dRPhoSubLeadEleThreshold ) continue;
+
+            goodElectrons.push_back( Electron );
+        }
+        
+        return goodElectrons;
+    }
+
 
     Ptr<reco::Vertex>  chooseElectronVertex( Ptr<flashgg::Electron> &elec, const std::vector<edm::Ptr<reco::Vertex> > &vertices )
     {
-
         double vtx_dz = 1000000;
         unsigned int min_dz_vtx = -1;
         for( unsigned int vtxi = 0; vtxi < vertices.size(); vtxi++ ) {
@@ -164,6 +265,20 @@ namespace flashgg {
             }
         }
         return vertices[min_dz_vtx];
+    }
+
+    float effectiveAreaEle03(float theEta) {
+        
+        float theEA = -999;
+        if(fabs(theEta) < 1) theEA = 0.1752;
+        else if(fabs(theEta) < 1.479) theEA = 0.1862;
+        else if(fabs(theEta) < 2.0) theEA = 0.1411;
+        else if(fabs(theEta) < 2.2) theEA = 0.1534;
+        else if(fabs(theEta) < 2.3) theEA = 0.1903;
+        else if(fabs(theEta) < 2.4) theEA = 0.2243;
+        else if(fabs(theEta) < 2.5) theEA = 0.2687;
+
+        return theEA;
     }
 }
 // Local Variables:
